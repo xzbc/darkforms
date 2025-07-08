@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DarkForms :: Форум</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'VT323', monospace;
+      background: #000;
+      color: #00ffff;
+      background-image: radial-gradient(circle, #001111 0%, #000000 100%);
+      position: relative;
+      overflow-x: hidden;
+      z-index: 0;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background: url('IMG/back.gif') center center / cover no-repeat;
+      opacity: 0.2;
+      z-index: -1;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      text-shadow: 0 0 4px #00ffff, 0 0 10px #00ffff;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #00ffff;
+      padding-bottom: 10px;
+    }
+    .thread-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+    .thread-table th, .thread-table td {
+      border: 1px solid #00ffff;
+      padding: 10px;
+      text-align: left;
+    }
+    .thread-table th { background-color: #002222; }
+    .thread-title { color: #00ffff; text-decoration: underline; cursor: pointer; }
+    .form-block {
+      background-color: #001111;
+      border: 1px solid #00ffff;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    input, textarea, select, button {
+      font-family: 'VT323', monospace;
+      font-size: 16px;
+      width: 100%;
+      padding: 10px;
+      background-color: #000;
+      color: #00ffff;
+      border: 1px solid #00ffff;
+      margin-top: 10px;
+      box-sizing: border-box;
+    }
+    textarea { resize: vertical; min-height: 100px; }
+    button:hover { background-color: #00ffff; color: #000; }
+    .post-view { margin-top: 30px; }
+    .post {
+      border: 1px solid #00ffff;
+      background-color: #001111;
+      padding: 15px;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .meta { font-size: 14px; color: #77ffff; margin-bottom: 5px; }
+    .reactions { margin-top: 10px; }
+    .reaction-btn {
+      background: none;
+      color: #00ffff;
+      border: 1px solid #00ffff;
+      font-size: 14px;
+      padding: 4px 8px;
+      margin-right: 6px;
+      cursor: pointer;
+    }
+    .reaction-btn.active { background-color: #00ffff; color: #000; }
+    .admin-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #ff4c4c;
+      border: none;
+      border-radius: 3px;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      z-index: 10;
+    }
+    .admin-btn:hover { background: #ff1a1a; }
+    .back-btn { margin-bottom: 20px; }
+    .post-image {
+      display: block;
+      max-width: 100%;
+      margin: 10px auto;
+      border: 1px solid #00ffff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>darkforms</h1>
+
+    <div class="form-block">
+      <label for="category">Категория:</label>
+      <select id="category">
+        <option value="Работа">Работа</option>
+        <option value="Семья">Семья</option>
+        <option value="Отношения">Отношения</option>
+        <option value="Трешстори">Трешстори</option>
+        <option value="Нытьё">Нытьё</option>
+      </select>
+      <label for="newTitle">Заголовок темы:</label>
+      <input type="text" id="newTitle" placeholder="Заголовок темы" />
+      <textarea id="newMessage" rows="4" placeholder="Первое сообщение..."></textarea>
+      <input type="file" id="imageUpload" accept="image/*" />
+      <button onclick="createThread()">Создать тему</button>
+    </div>
+
+    <table class="thread-table" id="threadList">
+      <thead>
+        <tr>
+          <th>Категория</th>
+          <th>Тема</th>
+          <th>Ответов</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+      <tbody id="threadRows"></tbody>
+    </table>
+
+    <div class="post-view" id="threadView" style="display: none">
+      <button class="back-btn" onclick="goBack()">← Назад к списку тем</button>
+      <h2 id="viewTitle"></h2>
+      <div id="postContainer"></div>
+      <textarea id="replyInput" rows="3" placeholder="Ваш ответ..."></textarea>
+      <button onclick="addReply()">Ответить</button>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA8KEo25dSEPDfuMEpl-pfJ8GZ2WhCXGVs",
+      authDomain: "darkforms-fdc17.firebaseapp.com",
+      projectId: "darkforms-fdc17",
+      storageBucket: "darkforms-fdc17.firebasestorage.app",
+      messagingSenderId: "1062592650381",
+      appId: "1:1062592650381:web:95697842148d02384956c4",
+      measurementId: "G-XV3JDX3WYW"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const threadList = document.getElementById('threadList');
+    const threadRows = document.getElementById('threadRows');
+    const postContainer = document.getElementById('postContainer');
+    const viewTitle = document.getElementById('viewTitle');
+
+    let currentThreadId = null;
+    let currentThreadData = null;
+
+    async function renderThreads() {
+      const querySnapshot = await getDocs(collection(db, "threads"));
+      threadRows.innerHTML = '';
+      querySnapshot.forEach((docSnap) => {
+        const t = docSnap.data();
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${t.category}</td>
+          <td><span class="thread-title" onclick="openThread('${docSnap.id}')">${t.title}</span></td>
+          <td>${t.messages?.length || 0}</td>
+          <td>${t.date}</td>
+        `;
+        threadRows.appendChild(row);
+      });
+    }
+
+    async function createThread() {
+      const title = document.getElementById('newTitle').value.trim();
+      const msg = document.getElementById('newMessage').value.trim();
+      const category = document.getElementById('category').value;
+      if (!title || !msg) return;
+      const now = new Date().toLocaleString();
+      await addDoc(collection(db, "threads"), {
+        title,
+        category,
+        date: now,
+        messages: [{ text: msg, date: now, reactions: { like: 0, dislike: 0 } }]
+      });
+      document.getElementById('newTitle').value = '';
+      document.getElementById('newMessage').value = '';
+      renderThreads();
+    }
+
+    window.openThread = async function(id) {
+      currentThreadId = id;
+      const docRef = doc(db, "threads", id);
+      onSnapshot(docRef, (docSnap) => {
+        const thread = docSnap.data();
+        currentThreadData = thread;
+        viewTitle.textContent = thread.title;
+        postContainer.innerHTML = '';
+        thread.messages.forEach((msg, idx) => {
+          const div = document.createElement('div');
+          div.className = 'post';
+          div.innerHTML = `
+            <div class="meta">anon :: ${msg.date}</div>
+            <div>${msg.text}</div>
+          `;
+          postContainer.appendChild(div);
+        });
+        threadList.style.display = 'none';
+        document.getElementById('threadView').style.display = 'block';
+      });
+    }
+
+    window.goBack = function() {
+      document.getElementById('threadView').style.display = 'none';
+      threadList.style.display = 'table';
+      renderThreads();
+    }
+
+    window.addReply = async function() {
+      const text = document.getElementById('replyInput').value.trim();
+      if (!text || !currentThreadId) return;
+      const now = new Date().toLocaleString();
+      const docRef = doc(db, "threads", currentThreadId);
+      await updateDoc(docRef, {
+        messages: arrayUnion({ text, date: now, reactions: { like: 0, dislike: 0 } })
+      });
+      document.getElementById('replyInput').value = '';
+    }
+
+    renderThreads();
+  </script>
+</body>
+</html>
